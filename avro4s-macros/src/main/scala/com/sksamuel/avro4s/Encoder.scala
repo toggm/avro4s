@@ -2,14 +2,14 @@ package com.sksamuel.avro4s
 
 import java.nio.ByteBuffer
 import java.sql.{Date, Timestamp}
-import java.time.{Instant, LocalDate, LocalDateTime, LocalTime, ZoneOffset}
+import java.time._
 import java.util.UUID
 
 import org.apache.avro.LogicalTypes.Decimal
 import org.apache.avro.generic.GenericData
 import org.apache.avro.generic.GenericData.EnumSymbol
 import org.apache.avro.util.Utf8
-import org.apache.avro.{Conversions, LogicalTypes, Schema}
+import org.apache.avro.{Conversions, Schema}
 import shapeless.ops.coproduct.Reify
 import shapeless.ops.hlist.ToList
 import shapeless.{Coproduct, Generic, HList, Lazy}
@@ -224,8 +224,8 @@ object Encoder extends CoproductEncoders with TupleEncoders {
 
   private val decimalConversion = new Conversions.DecimalConversion
 
-  implicit def bigDecimalEncoder(implicit sp: ScalePrecisionRoundingMode = ScalePrecisionRoundingMode.default): Encoder[BigDecimal] =
-    (t: BigDecimal, schema: Schema) => {
+  implicit def bigDecimalEncoder(implicit sp: ScalePrecisionRoundingMode = ScalePrecisionRoundingMode.default): Encoder[BigDecimal] = new Encoder[BigDecimal]{
+    override def encode(t: BigDecimal, schema: Schema): AnyRef = {
 
       // we support encoding big decimals in three ways - fixed, bytes or as a String
       schema.getType match {
@@ -242,6 +242,7 @@ object Encoder extends CoproductEncoders with TupleEncoders {
         case _ => sys.error(s"Cannot serialize BigDecimal as ${schema.getType}")
       }
     }
+  }
 
   implicit def javaEnumEncoder[E <: Enum[_]]: Encoder[E] = new Encoder[E] {
     override def encode(t: E, schema: Schema): EnumSymbol = new EnumSymbol(schema, t.name)
