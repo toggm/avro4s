@@ -17,6 +17,7 @@ import scala.language.experimental.macros
 import scala.reflect.ClassTag
 import scala.reflect.internal.{Definitions, StdNames, SymbolTable}
 import scala.reflect.runtime.universe._
+import scala.collection.JavaConverters._
 
 /**
   * A [[Decoder]] is used to convert an Avro value, such as a GenericRecord,
@@ -184,7 +185,27 @@ object Decoder extends CoproductDecoders with TupleDecoders {
   }
 
   implicit def optionDecoder[T](implicit decoder: Decoder[T]) = new Decoder[Option[T]] {
-    override def decode(value: Any, schema: Schema): Option[T] = if (value == null) None else Option(decoder.decode(value, schema))
+    override def decode(value: Any, schema: Schema): Option[T] = {
+      if (value == null) {
+        None
+      } else {
+        // try to decode with the non null child schemas if current schema is a union schema
+        val childSchema =  schema.getType match {
+          case Schema.Type.UNION =>
+            schema.getTypes.size match {
+              case 2 => schema.getTypes.asScala.find(_.getType != Schema.Type.NULL).get
+              case _ =>
+                val remainingSchemas = schema.getTypes.asScala.filter(_.getType != Schema.Type.NULL)
+                Schema.createUnion(remainingSchemas.toList.asJava)
+            }
+          case _ =>
+            // continue with provided schema
+            schema
+        }
+
+        Option(decoder.decode(value, childSchema))
+      }
+    }
   }
 
   implicit def vectorDecoder[T](implicit decoder: Decoder[T]): Decoder[Vector[T]] = new Decoder[Vector[T]] {
